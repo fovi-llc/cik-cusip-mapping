@@ -1,6 +1,8 @@
 #!/usr/bin/python
 import requests
 from ratelimit import limits, sleep_and_retry
+from pathlib import Path
+import gzip
 
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -21,6 +23,20 @@ from main_parameters import (
 _logger_name = "sec_edgar_dl"
 
 
+def is_bad_response(response, row, logger):
+    if "Request Rate Threshold Exceeded" in response.text:
+        logger.warning(f"Rate limit exceeded. Waiting at {row=}")
+        time.sleep(615)
+        return True
+
+    if response.status_code == 200:
+        return False
+
+    logger.warning(f"Expected 200 but got {response.status_code=} for {row=}")
+    time.sleep(1.1)
+    return True
+
+
 # Define the download function
 @sleep_and_retry
 @limits(calls=1, period=1)
@@ -30,19 +46,25 @@ def download_file(row):
         logger.info(f"Working on item: {row=}")
         url = row["url"]
         response = requests.get(url=url, headers=SEC_HTTP_HEADERS, timeout=HTTP_TIMEOUT)
-        while "Request Rate Threshold Exceeded" in response.text:
-            logger.warning(f"Rate limit exceeded. Waiting at {row=}")
-            time.sleep(615)
+        retries = 0
+        while is_bad_response(response, row, logger):
+            retries += 1
+            if retries > 3:
+                logger.warning(f"Too many retries for {row=}")
+                return
             response = requests.get(
                 url=url, headers=SEC_HTTP_HEADERS, timeout=HTTP_TIMEOUT
             )
-        if response.status_code != 200:
-            logger.warning(f"Expected 200 but got {response.status_code=} for {row=}")
         file_path = row["file_path"]
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "wb") as fd:
-            for chunk in response.iter_content(chunk_size=4096):
-                fd.write(chunk)
+        if file_path.suffix == ".gz":
+            with gzip.open(file_path, "wb") as fd:
+                for chunk in response.iter_content(chunk_size=4096):
+                    fd.write(chunk)
+        else:
+            with open(file_path, "wb") as fd:
+                for chunk in response.iter_content(chunk_size=4096):
+                    fd.write(chunk)
     except Exception as e:
         logger.warning(f"{row=} failed to download: {e}")
 
@@ -54,6 +76,14 @@ def init_worker(log_queue: multiprocessing.Queue, log_level: int) -> None:
 
     handler = QueueHandler(log_queue)
     logger.addHandler(handler)
+
+
+def file_exists(file_path: Path) -> bool:
+    if file_path.exists():
+        return True
+    if file_path.suffix == ".gz":
+        return (file_path.parent / file_path.stem).exists()
+    return False
 
 
 def download_files(rows: Sequence, overwrite: bool = False) -> None:
@@ -86,7 +116,7 @@ def download_files(rows: Sequence, overwrite: bool = False) -> None:
         print("Overwriting existing files (if any).")
     else:
         print(f"Checking {len(rows)=} for existing files.")
-        rows = [row for row in rows if not row["file_path"].exists()]
+        rows = [row for row in rows if not file_exists(row["file_path"])]
 
     print(f"starting download of {len(rows)=} files.")
 
