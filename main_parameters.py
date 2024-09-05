@@ -85,7 +85,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 # subdirectories are used to manage and store data at different stages of processing within the
 # program.
 # DATA_FOLDER = SCRIPT_DIR / "data"
-DATA_FOLDER = Path("/Volumes/Oahu/Vault/SEC")
+DATA_FOLDER = Path("/Volumes/Oahu/Mirror/SEC.gov")
 DATA_FOLDER.mkdir(parents=True, exist_ok=True)
 
 ARCHIVES_FOLDER      = DATA_FOLDER / "Archives"
