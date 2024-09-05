@@ -26,10 +26,12 @@ from datetime import datetime   # For handling dates and times
 #### USER PARAMETERS ####
 #########################
 # USER CHOICE: SEC filing types
-FILING_TYPES = ["13D", "13G"]               # SEC filing types for common stock
+# FILING_TYPES = ["13D", "13G", r"S\-", r"F\-"]               # SEC filing types for common stock
+FILING_TYPES = [r"^S\-", r"^F\-"]               # SEC filing types for common stock
+
 
 # Initial calendar quarter for downloads of master-filings-index and filings
-START_YEAR, START_QUARTER = (2024, 3)       # can be as early as (1994, 1)
+START_YEAR, START_QUARTER = (2000, 1)       # can be as early as (1994, 1)
 
 
 ############################
@@ -82,10 +84,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 # there are subdirectories created for raw downloads, processed data, and final output. These
 # subdirectories are used to manage and store data at different stages of processing within the
 # program.
-DATA_FOLDER = SCRIPT_DIR / "data"
+# DATA_FOLDER = SCRIPT_DIR / "data"
+DATA_FOLDER = Path("/Volumes/Oahu/Vault/SEC")
 DATA_FOLDER.mkdir(parents=True, exist_ok=True)
 
-ARCHIVES_FOLDER      = DATA_FOLDER / "archives"
+ARCHIVES_FOLDER      = DATA_FOLDER / "Archives"
 ARCHIVES_FOLDER.mkdir(parents=True, exist_ok=True)
 
 DATA_RAW_FOLDER     = DATA_FOLDER / "raw_downloads"
@@ -96,6 +99,8 @@ DATA_FINAL_FOLDER   = DATA_FOLDER / "final"
 FILINGS_DIRECTORIES = [DATA_RAW_FOLDER / f"{x}_filings" for x in FILING_TYPES]  # e.g. ['13D_filings', '13G_filings', ...]
 
 # Helper filepaths for processing the EDGAR's MASTER INDEX OF SEC FILINGS
+# I did this manually but this should be added to dl_idx.py.
+# tar czf $DATA_PROC_FOLDER/master_index.tar.gz -C $ARCHIVES_FOLDER/edgar full-index
 MASTER_INDEX_PREFIX     = "master_index"  #"master_index_1_raw.idx"  # historical archive tarball (write: dl_idx.py)
 FILTERED_INDEX_FILE     = DATA_PROC_FOLDER / "master_index_filtered.csv"        # historical archive, filtered for chosen filing types (write: dl_idx.py, read: dl2.py)
 

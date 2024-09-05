@@ -28,11 +28,7 @@ from main_parameters import(
 
 
 def download_sec_index_of_filings():
-    rows = []
-    for url in SEC_MASTER_URLS:
-        file_path = ARCHIVES_FOLDER / url
-        if not file_path.exists():
-            rows.append({"url": SEC_ARCHIVES_URL + url, "file_path": file_path})
+    rows = [{"url": SEC_ARCHIVES_URL + url, "file_path": ARCHIVES_FOLDER / url} for url in SEC_MASTER_URLS]
     download_files(rows)
 
 
@@ -62,9 +58,11 @@ def process_tarfile(tar_path, line_processor):
     """
     with tarfile.open(tar_path, "r:gz") as tar:
         for member in tar.getmembers():
-            with tar.extractfile(member) as file_obj:
-                lines = (line.decode('latin1') for line in file_obj)
-                yield from line_processor(lines)
+            if member.isfile() and member.name.endswith(".idx"):
+                print(f"Processing {member.name}")
+                with tar.extractfile(member) as file_obj:
+                    lines = (line.decode('latin1') for line in file_obj)
+                    yield from line_processor(lines)
 
 def write_csv(output_file, headers, data_generator):
     """
@@ -100,4 +98,4 @@ def filter_sec_index_of_filings_to_csv():
 
 if __name__ == "__main__":
     download_sec_index_of_filings()
-    # filter_sec_index_of_filings_to_csv()
+    filter_sec_index_of_filings_to_csv()

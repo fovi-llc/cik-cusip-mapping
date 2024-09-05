@@ -81,7 +81,7 @@ def download_files(rows: Sequence, overwrite: bool = False) -> None:
     if overwrite:
         print("Overwriting existing files (if any).")
     else:
-        print("Checking {len(rows)=} for existing files.")
+        print(f"Checking {len(rows)=} for existing files.")
         rows = [row for row in rows if not row['file_path'].exists()]
 
     print(f"starting download of {len(rows)=} files.")
