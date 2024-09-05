@@ -12,34 +12,28 @@ the full (master) index file.
 import csv          # For reading from and writing to CSV files
 import re           # For regular expressions, useful in pattern matching and text processing
 
-from utils_internet import EfficientDownloader
+from downloader import download_files
+
 import tarfile
 
 from main_parameters import(
-    SEC_USER_AGENT,
-    SEC_RATE_LIMIT,
+    SEC_ARCHIVES_URL,
     SEC_MASTER_URLS,
-
     FILING_TYPES, 
     MASTER_INDEX_PREFIX, 
     FILTERED_INDEX_FILE,
-
     DATA_RAW_FOLDER,
+    ARCHIVES_FOLDER,
 )
 
-
-"A class for efficiently downloading and processing a large number of files from a single site."
-downloader = EfficientDownloader(
-    urls=SEC_MASTER_URLS,
-    user_agent=SEC_USER_AGENT,
-    rate_limit=SEC_RATE_LIMIT,
-    download_dir=DATA_RAW_FOLDER,
-    archive_prefix=MASTER_INDEX_PREFIX,
-    # process_func=sample_processor,
-)
 
 def download_sec_index_of_filings():
-    downloader.download_and_process()
+    rows = []
+    for url in SEC_MASTER_URLS:
+        file_path = ARCHIVES_FOLDER / url
+        if not file_path.exists():
+            rows.append({"url": SEC_ARCHIVES_URL + url, "file_path": file_path})
+    download_files(rows)
 
 
 def apply_pattern_to_lines(pattern, lines):
@@ -106,4 +100,4 @@ def filter_sec_index_of_filings_to_csv():
 
 if __name__ == "__main__":
     download_sec_index_of_filings()
-    filter_sec_index_of_filings_to_csv()
+    # filter_sec_index_of_filings_to_csv()

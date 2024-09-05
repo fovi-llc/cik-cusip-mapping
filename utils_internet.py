@@ -7,13 +7,31 @@ from typing import List, Callable
 import tarfile
 from datetime import datetime
 import logging
-from concurrent.futures import ThreadPoolExecutor
 import os
 import asyncio
 import aiohttp
 import queue
+import logging
+import multiprocessing
+import string
+from concurrent.futures import ProcessPoolExecutor
+from logging.handlers import QueueHandler, QueueListener
+from random import Random
+from time import sleep
+from typing import Sequence
+
+import requests
+
+from concurrent.futures import ProcessPoolExecutor
+from ratelimit import limits, sleep_and_retry
 
 from tqdm import tqdm
+
+from main_parameters import SEC_USER_AGENT, SEC_MASTER_URLS, SEC_RATE_LIMIT
+
+
+_logger_name = "sec_edgar_dl"
+
 
 
 class ProgressTracker:
@@ -51,22 +69,41 @@ class ProgressTracker:
         self.pbar.close()
 
 
-class RateLimiter:
-    """A thread-safe rate limiter to ensure adherence to the rate limit."""
+# gwerbin/multiprocessing_logging.py
+# https://gist.github.com/gwerbin/e9ab7a88fef03771ab0bf3a11cf921bc
 
-    def __init__(self, rate_limit: int):
-        self.rate_limit = rate_limit
-        self.last_request_time = 0
-        self.lock = threading.Lock()
 
-    def wait(self):
-        """Wait if necessary to comply with the rate limit."""
-        with self.lock:
-            current_time = time.time()
-            time_since_last_request = current_time - self.last_request_time
-            if time_since_last_request < 1 / self.rate_limit:
-                time.sleep((1 / self.rate_limit) - time_since_last_request)
-            self.last_request_time = time.time()
+def init_worker(log_queue: multiprocessing.Queue, log_level: int) -> None:
+    """Initialize a worker process."""
+    logger = logging.getLogger(_logger_name)
+    logger.setLevel(log_level)
+
+    handler = QueueHandler(log_queue)
+    logger.addHandler(handler)
+
+
+# Define the download function
+@sleep_and_retry
+@limits(calls=1, period=1)
+def download_file(row):
+    cik, date, url, file_path = row
+    logger = logging.getLogger(_logger_name)
+    logger.info(f"Working on {row=}")
+    try:
+        print(f"Downloading {cik}, {date}")
+        txt = requests.get(
+            url=SEC_MASTER_URLS + url, headers=SEC_USER_AGENT, timeout=60
+        ).text
+        while "Request Rate Threshold Exceeded" in txt:
+            print("Rate limit exceeded. Waiting for 610 seconds.")
+            time.sleep(610)
+            txt = requests.get(
+                f"https://www.sec.gov/Archives/{url}", headers=SEC_USER_AGENT, timeout=60
+            ).text
+        with open(file_path, "w", errors="ignore") as f:
+            f.write(txt)
+    except Exception as e:
+        print(f"{cik}, {date} failed to download: {e}")
 
 
 class EfficientDownloader:
@@ -135,7 +172,7 @@ class EfficientDownloader:
         tracker_task = asyncio.create_task(progress_tracker.update(download_queue, process_queue))
 
         # Start processing in a separate thread pool
-        with ThreadPoolExecutor(max_workers=os.cpu_count()) as process_executor:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as process_executor:
             process_future = process_executor.submit(self._process_files, process_queue)
 
             # Asynchronous downloading
@@ -277,24 +314,3 @@ class EfficientDownloader:
         print("Logging failed downloads...")
         self.log_failures()
         self._print_summary_stats()
-
-
-if __name__ == "__main__":
-    from main_parameters import SEC_USER_AGENT, SEC_MASTER_URLS, SEC_RATE_LIMIT
-
-    DATA_RAW_FOLDER = Path("temp_downloads")
-    MASTER_INDEX_PREFIX = "master_index"
-
-    def example_processor(content: bytes) -> bytes:
-        # This is a placeholder processor function
-        return content.upper()
-
-    sec_index_downloader = EfficientDownloader(
-        urls=SEC_MASTER_URLS,
-        user_agent=SEC_USER_AGENT,
-        rate_limit=SEC_RATE_LIMIT,
-        download_dir=DATA_RAW_FOLDER,
-        archive_prefix=MASTER_INDEX_PREFIX,
-        # process_func=example_processor,
-    )
-    sec_index_downloader.download_and_process()

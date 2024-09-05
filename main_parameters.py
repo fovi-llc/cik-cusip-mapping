@@ -31,28 +31,36 @@ FILING_TYPES = ["13D", "13G"]               # SEC filing types for common stock
 # Initial calendar quarter for downloads of master-filings-index and filings
 START_YEAR, START_QUARTER = (2024, 3)       # can be as early as (1994, 1)
 
-# Batch size for downloading SEC filings
-# MAX_THREADS = 20    # Adjust based on your system's capabilities
 
 ############################
 #### SOURCE INFORMATION ####
 ############################
-SEC_USER_AGENT = {
-    'User-Agent': 'ACME Co jane.smith@acme.co',         # <-- Your info here. Required by SEC's EDGAR system
-    'Accept-Encoding': 'deflate',
+SEC_USER_AGENT = 'Fovi LLC jim@fovi.com' # <-- Your info here. Required by SEC's EDGAR system
+SEC_HTTP_HEADERS = {
+    'User-Agent': SEC_USER_AGENT,
+    'Accept-Encoding': 'gzip',
     'Host': 'www.sec.gov'
 }
 
+# HTTP GET timelimit in seconds
+HTTP_TIMEOUT = 60
+
 # URL template for quarterly master index archives
-sec_master_url_template = """https://www.sec.gov/Archives/edgar/full-index/{year}/QTR{quarter}/master.idx"""     # dl_idx.py
+sec_master_url_template = """edgar/full-index/{year}/QTR{quarter}/master.idx"""     # dl_idx.py
 # SEC_MASTER_URL.format(year=2024, quarter=3)
+
+SEC_BASE_URL = "https://www.sec.gov/"
+
+SEC_ARCHIVES_URL = "https://www.sec.gov/Archives/"
 
 # URL template for SEC filings, where filename has the format CIK/
 SEC_FILINGS_URL = """https://www.sec.gov/Archives/{filename}"""                                         # dl.py
 # SEC_FILINGS_URL.format(filename="edgar/data/1000694/0000093751-24-000650.txt")
 
 # SEC's EDGAR system prohibits http requests faster than 10-per-second
-SEC_RATE_LIMIT = 10
+SEC_RATE_LIMIT = 9
+
+MAX_CHUNKSIZE = SEC_RATE_LIMIT * 60 * 30
 
 #####################################
 #### DATA PROCESSING INFORMATION ####
@@ -69,8 +77,16 @@ cusip_rx        = re.compile(r'[\( >]*[0-9A-Z]{1}[0-9]{3}[0-9A-Za-z]{2}[- ]*[0-9
 # Get the directory where the current script is located
 SCRIPT_DIR = Path(__file__).resolve().parent
 
-DATA_FOLDER = SCRIPT_DIR / "data_dir"
+# `DATA_FOLDER` is a variable that stores the path to the directory where the script is located. It is
+# used to organize and store different types of data related to the program. Within this directory,
+# there are subdirectories created for raw downloads, processed data, and final output. These
+# subdirectories are used to manage and store data at different stages of processing within the
+# program.
+DATA_FOLDER = SCRIPT_DIR / "data"
 DATA_FOLDER.mkdir(parents=True, exist_ok=True)
+
+ARCHIVES_FOLDER      = DATA_FOLDER / "archives"
+ARCHIVES_FOLDER.mkdir(parents=True, exist_ok=True)
 
 DATA_RAW_FOLDER     = DATA_FOLDER / "raw_downloads"
 DATA_PROC_FOLDER    = DATA_FOLDER / "processed"
